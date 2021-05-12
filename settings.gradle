@@ -1,0 +1,5 @@
+include ':portal-base'
+include ':portal-core'
+include ':portal-compiler'
+include ':app'
+rootProject.name = "Portal"
