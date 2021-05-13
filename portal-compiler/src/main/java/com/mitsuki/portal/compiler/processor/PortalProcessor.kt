@@ -5,12 +5,15 @@ import com.mitsuki.portal.base.annotation.Portal
 import com.mitsuki.portal.compiler.Constants
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.asClassName
+import com.squareup.kotlinpoet.asTypeName
+import java.util.*
 import javax.annotation.processing.*
 import javax.lang.model.SourceVersion
 import javax.lang.model.element.Element
 import javax.lang.model.element.TypeElement
 import javax.lang.model.util.Elements
 import javax.lang.model.util.Types
+import javax.tools.Diagnostic
 
 class PortalProcessor : AbstractProcessor() {
 
@@ -51,9 +54,21 @@ class PortalProcessor : AbstractProcessor() {
         if (routeElements.isNotEmpty()) {
             val typeLoader: TypeElement = elementUtil.getTypeElement(Constants.LOADER)
             val portalMeta: ClassName = PortalMeta::class.java.asClassName()
+            val groupMap: MutableMap<String, Set<PortalMeta>> = HashMap<String, Set<PortalMeta>>()
 
             routeElements.forEach {
 
+                //收集所有注解进行分组
+
+                //然后按分组创建代码文件
+                (it as TypeElement)
+
+
+//
+//                this.messager.printMessage(
+//                    Diagnostic.Kind.WARNING,
+//                    "=============> RouterProcessor ${ClassName.bestGuess()}"
+//                )
             }
         }
 
