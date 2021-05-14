@@ -1,6 +1,6 @@
 package com.mitsuki.portal.base
 
-interface Loader {
+interface ItemLoader {
     fun loadInto(map: MutableMap<String, PortalMeta>)
 }
 

@@ -4,5 +4,5 @@ package com.mitsuki.portal.base.annotation
 @Retention(AnnotationRetention.SOURCE)
 annotation class Portal(
     val path: String,
-    val group: String
+    val group: String = "DEFAULT"
 )
