@@ -1,5 +1,6 @@
 package com.mitsuki.portal.compiler.processor
 
+import com.mitsuki.portal.base.GroupLoader
 import com.mitsuki.portal.base.ItemLoader
 import com.mitsuki.portal.base.PortalMeta
 import com.mitsuki.portal.base.annotation.Portal
@@ -22,14 +23,17 @@ class PortalProcessor : AbstractProcessor() {
     private lateinit var typeUtil: Types
     private lateinit var messager: Messager
 
-//    private val groupMap: MutableMap<String, MutableSet<PortalMeta>> = HashMap<String, MutableSet<PortalMeta>>()
+    private lateinit var moduleName: String
 
     override fun init(processingEnvironment: ProcessingEnvironment) {
         super.init(processingEnvironment)
         this.filer = processingEnvironment.filer
         this.elementUtil = processingEnvironment.elementUtils
         this.typeUtil = processingEnvironment.typeUtils
-        this.messager = processingEnv.messager
+        this.messager = processingEnvironment.messager
+
+        moduleName = processingEnvironment.options[Constants.MODULE_NAME]?.nameFilter() ?: ""
+        if (moduleName.isEmpty()) throw  IllegalStateException()
     }
 
     override fun getSupportedAnnotationTypes(): MutableSet<String> =
@@ -51,14 +55,10 @@ class PortalProcessor : AbstractProcessor() {
         return true
     }
 
-
     private fun parse(routeElements: Set<Element>) {
         if (routeElements.isNotEmpty()) {
-//            val portalMeta: ClassName = PortalMeta::class.java.asClassName()
             val groupMap: MutableMap<String, MutableSet<PortalMeta>> =
                 HashMap<String, MutableSet<PortalMeta>>()
-
-            //遍历注解节点
 
             for (element in routeElements) {
                 val route: Portal = element.getAnnotation(Portal::class.java)
@@ -80,55 +80,71 @@ class PortalProcessor : AbstractProcessor() {
                 .addParameter(
                     "map",
                     ClassName("kotlin.collections", "MutableMap").parameterizedBy(
-                        String::class.asTypeName(), ItemLoader::class.asTypeName()
+                        String::class.asTypeName(),
+                        Class::class.asTypeName()
+                            .parameterizedBy(WildcardTypeName.producerOf(ItemLoader::class.asTypeName()))
                     )
                 )
-
-            val groupLoadFuncBuilder = FunSpec.builder(Constants.METHOD_LOAD_INTO)
-                .addModifiers(KModifier.OVERRIDE)
-                .addParameter(
-                    "map",
-                    ClassName("kotlin.collections", "MutableMap").parameterizedBy(
-                        String::class.asTypeName(), PortalMeta::class.asTypeName()
-                    )
-                )
-
 
             groupMap.forEach { group ->
-                group.value.forEach { meta ->
-                    groupLoadFuncBuilder.addStatement(
-                        "map[%S] = %T(%S, %S, %T::class.java)",
-                        meta.path,
-                        PortalMeta::class,
-                        meta.path,
-                        meta.group,
-                        ClassName.bestGuess(meta.requireClassName())
-                    )
-                }
+                FunSpec.builder(Constants.METHOD_LOAD_INTO)
+                    .addModifiers(KModifier.OVERRIDE)
+                    .addParameter(
+                        "map",
+                        ClassName("kotlin.collections", "MutableMap").parameterizedBy(
+                            String::class.asTypeName(), PortalMeta::class.asTypeName()
+                        )
+                    ).apply {
+
+                        group.value.forEach { meta ->
+                            addStatement(
+                                "map[%S] = %T(%S, %S, %T::class.java)",
+                                meta.path,
+                                PortalMeta::class,
+                                meta.path,
+                                meta.group,
+                                ClassName.bestGuess(meta.requireClassName())
+                            )
+                        }
+
+                        FileSpec
+                            .builder(
+                                Constants.PACKAGE_OF_GENERATE_FILE,
+                                Constants.GROUP + group.key.nameFilter()
+                            )
+                            .addType(
+                                TypeSpec.classBuilder(
+                                    Constants.GROUP + group.key.nameFilter()
+                                )
+                                    .addSuperinterface(ItemLoader::class.asClassName())
+                                    .addFunction(build())
+                                    .build()
+                            ).build().writeTo(filer)
+                    }
 
 
                 rootLoadFuncBuilder.addStatement(
-                    "map[%S] = %T"
+                    "map[%S] = %T::class.java",
+                    group.key,
+                    ClassName(
+                        Constants.PACKAGE_OF_GENERATE_FILE,
+                        Constants.GROUP + group.key.nameFilter()
+                    )
                 )
-
-
-
             }
 
-
-            FileSpec.builder(Constants.PACKAGE_OF_GENERATE_FILE, "Main")
+            FileSpec.builder(Constants.PACKAGE_OF_GENERATE_FILE, Constants.ROOT + moduleName)
                 .addType(
-                    TypeSpec.classBuilder("Main")
-                        .addSuperinterface(ItemLoader::class.asClassName())
-                        .addFunction(groupLoadFuncBuilder.build())
+                    TypeSpec.classBuilder(Constants.ROOT + moduleName)
+                        .addSuperinterface(GroupLoader::class.asClassName())
+                        .addFunction(rootLoadFuncBuilder.build())
                         .build()
                 ).build().writeTo(filer)
-
-//            this.messager.printMessage(
-//                Diagnostic.Kind.WARNING,
-//                "=============> RouterProcessor"
-//            )
         }
 
+    }
+
+    private fun String.nameFilter(): String {
+        return replace(Regex("[^0-9a-zA-Z_]+"), "")
     }
 }
